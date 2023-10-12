@@ -1,0 +1,72 @@
+#20secitons distance of Cross and 45deg
+import pandas as pd
+
+# Define the path to your Excel file
+file_path = 'C:/Users/rjhyu/파이썬 연습/row data/시편 data/20section-deg45-20mm60deg-all.xlsx'
+
+# Define the reference point
+average_z_value = 0.025745041
+reference_point = (0.05, average_z_value)
+
+# Get all sheet names in the Excel file
+xl = pd.ExcelFile(file_path)
+sheet_names = xl.sheet_names
+
+# Initialize the results DataFrame
+results_df = pd.DataFrame(columns=['Sheet', 'Section', 'Y Distance (mm)', 'Left Point Y', 'Left Point Z', 'Right Point Y', 'Right Point Z'])
+
+for sheet in sheet_names:
+    print(f"Processing sheet: {sheet}")
+    
+    # Load the sheet into a DataFrame
+    df = xl.parse(sheet)
+
+    # Find the minimum and maximum x values to divide the sections accurately
+    min_x = df['x'].min()
+    max_x = df['x'].max()
+    section_width = (max_x - min_x) / 20
+    
+    for i in range(20):
+        section_min_x = min_x + (i * section_width)
+        section_max_x = min_x + ((i + 1) * section_width)
+        section_label = f"{section_min_x:.2f} to {section_max_x:.2f}"
+        
+        # Filter rows based on the x value section and z value margin
+        filtered_df = df[(df['x'] >= section_min_x) & (df['x'] < section_max_x) & (abs(df['z'] - reference_point[1]) <= 0.001)]
+        
+        # Sort filtered_df based on the y value
+        filtered_df = filtered_df.sort_values(by='y')
+        
+        # Find the closest point to the left of y=0.05
+        left_point = filtered_df[filtered_df['y'] < reference_point[0]].iloc[-1] if not filtered_df[filtered_df['y'] < reference_point[0]].empty else None
+        
+        # Find the closest point to the right of y=0.05
+        right_point = filtered_df[filtered_df['y'] > reference_point[0]].iloc[0] if not filtered_df[filtered_df['y'] > reference_point[0]].empty else None
+        
+        # Calculate the y distance between the two points and append the result to results_df
+        if left_point is not None and right_point is not None:
+            distance_y = abs(right_point['y'] - left_point['y']) * 1000  # Convert to mm
+            new_row = pd.DataFrame({
+                'Sheet': [sheet],
+                'Section': [section_label],
+                'Y Distance (mm)': [distance_y],
+                'Left Point Y': [left_point['y']],
+                'Left Point Z': [left_point['z']],
+                'Right Point Y': [right_point['y']],
+                'Right Point Z': [right_point['z']]
+            })
+            results_df = pd.concat([results_df, new_row], ignore_index=True)
+        else:
+            new_row = pd.DataFrame({
+                'Sheet': [sheet],
+                'Section': [section_label],
+                'Y Distance (mm)': ['N/A'],
+                'Left Point Y': ['N/A'],
+                'Left Point Z': ['N/A'],
+                'Right Point Y': ['N/A'],
+                'Right Point Z': ['N/A']
+            })
+            results_df = pd.concat([results_df, new_row], ignore_index=True)
+
+# Save results_df to a new Excel file
+results_df.to_excel("C:/Users/rjhyu/파이썬 연습/results_sections.xlsx", index=False)
